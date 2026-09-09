@@ -1,0 +1,12 @@
+{
+  "exercise": "upper_limb",
+  "thresholds": {
+    "asymmetry_limit": 15,
+    "stable_score_min": 80
+  },
+  "feedback": [
+    "Keep the shoulder stable.",
+    "Move through a smooth arc.",
+    "Reduce trunk compensation."
+  ]
+}

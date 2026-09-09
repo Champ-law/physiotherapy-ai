@@ -1,0 +1,13 @@
+{
+  "exercise": "squat",
+  "thresholds": {
+    "good_depth_max": 100,
+    "too_deep_min": 85,
+    "standing_threshold": 170
+  },
+  "feedback": [
+    "Maintain a tall posture.",
+    "Keep knees aligned with toes.",
+    "Control the descent and ascent."
+  ]
+}

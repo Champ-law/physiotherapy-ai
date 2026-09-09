@@ -1,0 +1,12 @@
+{
+  "exercise": "gait",
+  "thresholds": {
+    "asymmetry_limit": 12,
+    "stable_score_min": 80
+  },
+  "feedback": [
+    "Balance weight transfer.",
+    "Keep the pelvis level.",
+    "Walk with smooth step cadence."
+  ]
+}

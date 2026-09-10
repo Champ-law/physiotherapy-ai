@@ -1,6 +1,14 @@
 import numpy as np
 
 from src.analysis.angle_utils import calculate_angle
+from src.analysis.face_metrics import analyze_face
+from src.analysis.pose_metrics import (
+    SquatRepTracker,
+    TemporalSmoother,
+    assess_pose_quality,
+    calculate_pose_angles,
+    camera_guidance,
+)
 from src.analysis.symmetry import analyze_symmetry
 from src.api.schemas import validate_analysis_request
 from src.backbone.mediapipe_pose import PoseDetector
@@ -216,3 +224,102 @@ def test_capture_loop_has_iteration_and_stop_behavior():
     assert hasattr(capture, "run")
     assert hasattr(capture, "stop")
     assert capture.frame_limit == 1
+
+
+def test_pose_metrics_calculate_bilateral_joint_angles():
+    landmarks = {
+        "left_shoulder": (0.0, 0.0),
+        "right_shoulder": (1.0, 0.0),
+        "left_elbow": (0.0, 0.5),
+        "right_elbow": (1.0, 0.5),
+        "left_wrist": (0.0, 1.0),
+        "right_wrist": (1.0, 1.0),
+        "left_hip": (0.0, 1.0),
+        "right_hip": (1.0, 1.0),
+        "left_knee": (0.0, 2.0),
+        "right_knee": (1.0, 2.0),
+        "left_ankle": (0.0, 3.0),
+        "right_ankle": (1.0, 3.0),
+        "left_foot_index": (0.0, 4.0),
+        "right_foot_index": (1.0, 4.0),
+    }
+
+    angles = calculate_pose_angles(landmarks)
+
+    assert angles["left_knee_angle"] == 180.0
+    assert angles["right_knee_angle"] == 180.0
+    assert "left_elbow_angle" in angles
+    assert "torso_angle" in angles
+
+
+def test_pose_quality_rejects_low_confidence_landmarks():
+    landmarks = {
+        "left_hip": {"x": 0.0, "y": 0.0, "visibility": 0.2},
+        "right_hip": {"x": 1.0, "y": 0.0, "visibility": 0.2},
+    }
+
+    quality = assess_pose_quality(landmarks, names=["left_hip", "right_hip"])
+
+    assert not quality.reliable
+    assert quality.visible_count == 0
+    assert quality.guidance
+
+
+def test_temporal_smoother_reduces_change_between_values():
+    smoother = TemporalSmoother(alpha=0.25)
+    smoother.update({"left_knee_angle": 100.0})
+    result = smoother.update({"left_knee_angle": 140.0})
+
+    assert result["left_knee_angle"] == 110.0
+
+
+def test_squat_tracker_counts_completed_rep():
+    tracker = SquatRepTracker()
+
+    tracker.update(170)
+    tracker.update(100)
+    tracker.update(85)
+    result = tracker.update(170)
+
+    assert result["repetitions"] == 1
+    assert result["phase"] == "standing"
+
+
+def test_camera_guidance_detects_narrow_or_incomplete_view():
+    guidance = camera_guidance({
+        "left_shoulder": (0.49, 0.2),
+        "right_shoulder": (0.51, 0.2),
+        "left_hip": (0.49, 0.5),
+        "right_hip": (0.51, 0.5),
+        "left_ankle": (0.49, 0.95),
+        "right_ankle": (0.51, 0.95),
+    })
+
+    assert guidance
+
+
+def test_face_analysis_returns_orientation_and_expression_metrics():
+    face = {
+        "nose_tip": (0.5, 0.45, 0.0),
+        "left_eye_outer": (0.35, 0.35, 0.0),
+        "left_eye_inner": (0.42, 0.35, 0.0),
+        "left_eye_top": (0.38, 0.34, 0.0),
+        "left_eye_bottom": (0.38, 0.36, 0.0),
+        "right_eye_inner": (0.58, 0.35, 0.0),
+        "right_eye_outer": (0.65, 0.35, 0.0),
+        "right_eye_top": (0.62, 0.34, 0.0),
+        "right_eye_bottom": (0.62, 0.36, 0.0),
+        "left_cheek": (0.28, 0.5, 0.0),
+        "right_cheek": (0.72, 0.5, 0.0),
+        "mouth_left": (0.4, 0.62, 0.0),
+        "mouth_right": (0.6, 0.62, 0.0),
+        "upper_lip": (0.5, 0.61, 0.0),
+        "lower_lip": (0.5, 0.64, 0.0),
+    }
+
+    result = analyze_face(face)
+
+    assert result.visible
+    assert set(result.head_orientation) == {"yaw", "pitch", "roll"}
+    assert "left_eye_open" in result.metrics
+    assert result.expression in {"neutral-like expression", "smile-like expression", "eyes closed"}

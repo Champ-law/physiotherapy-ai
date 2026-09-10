@@ -40,14 +40,46 @@ def get_landmark_xy(landmarks, landmark_name):
     """Resolve a named landmark from either a dict or a MediaPipe landmarks object."""
     if isinstance(landmarks, dict):
         normalized_name = landmark_name.lower().replace("-", "_")
-        candidates = [landmark_name, normalized_name]
+        candidates = [landmark_name, normalized_name, landmark_name.upper(), normalized_name.upper()]
         for candidate in candidates:
             if candidate in landmarks:
                 return np.asarray(landmarks[candidate][:2], dtype=float)
         raise KeyError(f"Landmark '{landmark_name}' was not found in the landmark dictionary.")
 
     if hasattr(landmarks, "landmark"):
-        landmark = landmarks.landmark[landmark_name]
-        return np.asarray([landmark.x, landmark.y], dtype=float)
+        try:
+            import mediapipe as mp
+        except ImportError:
+            mp = None
+
+        normalized_name = landmark_name.lower().replace("-", "_")
+        candidates = [
+            landmark_name,
+            normalized_name,
+            landmark_name.upper(),
+            normalized_name.upper(),
+        ]
+
+        if mp is not None and hasattr(mp, "solutions"):
+            enum_lookup = {
+                "left_hip": mp.solutions.pose.PoseLandmark.LEFT_HIP,
+                "left_knee": mp.solutions.pose.PoseLandmark.LEFT_KNEE,
+                "left_ankle": mp.solutions.pose.PoseLandmark.LEFT_ANKLE,
+                "right_hip": mp.solutions.pose.PoseLandmark.RIGHT_HIP,
+                "right_knee": mp.solutions.pose.PoseLandmark.RIGHT_KNEE,
+                "right_ankle": mp.solutions.pose.PoseLandmark.RIGHT_ANKLE,
+                "left_shoulder": mp.solutions.pose.PoseLandmark.LEFT_SHOULDER,
+                "right_shoulder": mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER,
+                "left_elbow": mp.solutions.pose.PoseLandmark.LEFT_ELBOW,
+                "right_elbow": mp.solutions.pose.PoseLandmark.RIGHT_ELBOW,
+                "left_wrist": mp.solutions.pose.PoseLandmark.LEFT_WRIST,
+                "right_wrist": mp.solutions.pose.PoseLandmark.RIGHT_WRIST,
+            }
+            for candidate in candidates:
+                if candidate in enum_lookup:
+                    landmark = landmarks.landmark[enum_lookup[candidate].value]
+                    return np.asarray([landmark.x, landmark.y], dtype=float)
+
+        raise KeyError(f"Landmark '{landmark_name}' was not found in the MediaPipe landmark set.")
 
     raise TypeError("Unsupported landmark representation. Expected dict or MediaPipe landmark object.")
